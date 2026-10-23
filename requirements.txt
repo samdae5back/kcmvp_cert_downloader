@@ -1,0 +1,3 @@
+# 서버(crypto_manage/requirements.txt)와 같은 Playwright 버전을 쓴다 — 사이트 셀렉터·동작을 러너와 맞추기 위해.
+playwright==1.45.0
+pyinstaller>=6.6
