@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 r"""
 KCMVP 인증서 다운로더 — Windows 단독 실행용 GUI.
-made by myungjunkim · © 2026 myungjunkim. All rights reserved.
+made by Myungjun Kim · © 2026 Myungjun Kim. All rights reserved. · https://github.com/samdae5back
 
 crypto_manage 웹앱의 "인증서 받기"(CAVP) · "엔트로피 인증서 받기" 기능
 (scripts/kcmvp_sample_runner.py 의 download_row_certificate / run_entropy_cert_job 흐름)을
@@ -40,13 +40,15 @@ import subprocess
 import sys
 import threading
 import time
+import webbrowser
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 APP_NAME = "KCMVP 인증서 다운로더"
-CREDIT = "made by myungjunkim"
-COPYRIGHT = "© 2026 myungjunkim. All rights reserved."
+CREDIT = "made by Myungjun Kim"
+COPYRIGHT = "© 2026 Myungjun Kim. All rights reserved."
+GITHUB_URL = "https://github.com/samdae5back"   # 예: "https://github.com/<아이디>" 또는 저장소 주소 — 비워 두면 링크를 표시하지 않는다
 APP_VERSION = "1.1.0"
 # 창 제목·오른쪽 아래 푸터에 표시한다. exe 파일 속성(자세히 탭)의 회사·저작권은 version_info.txt.
 FROZEN = bool(getattr(sys, "frozen", False))
@@ -1421,6 +1423,10 @@ class App:
         footer = ttk.Frame(outer)
         footer.pack(fill="x", pady=(4, 0))
         ttk.Label(footer, text=f"{CREDIT} · {COPYRIGHT}", foreground="#888").pack(side="right")
+        if GITHUB_URL:  # 왼쪽 아래: 누르면 기본 브라우저로 여는 링크
+            link = ttk.Label(footer, text=f"GitHub: {GITHUB_URL}", foreground="#1a5fb4", cursor="hand2")
+            link.pack(side="left")
+            link.bind("<Button-1>", lambda _e: webbrowser.open(GITHUB_URL))
 
         if self.user_var.get():
             self.password_entry.focus_set()

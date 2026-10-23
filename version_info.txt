@@ -15,11 +15,12 @@ VSVersionInfo(
     StringFileInfo([
       StringTable(
         '041204B0',
-        [StringStruct('CompanyName', 'myungjunkim'),
-         StringStruct('FileDescription', 'KCMVP 인증서 다운로더 (made by myungjunkim)'),
+        [StringStruct('Comments', 'https://github.com/samdae5back'),
+         StringStruct('CompanyName', 'Myungjun Kim'),
+         StringStruct('FileDescription', 'KCMVP 인증서 다운로더 (made by Myungjun Kim)'),
          StringStruct('FileVersion', '1.1.0.0'),
          StringStruct('InternalName', 'KcmvpCertDownloader'),
-         StringStruct('LegalCopyright', '© 2026 myungjunkim. All rights reserved.'),
+         StringStruct('LegalCopyright', '© 2026 Myungjun Kim. All rights reserved.'),
          StringStruct('OriginalFilename', 'KcmvpCertDownloader.exe'),
          StringStruct('ProductName', 'KCMVP 인증서 다운로더'),
          StringStruct('ProductVersion', '1.1.0.0')])
