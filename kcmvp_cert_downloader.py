@@ -53,8 +53,8 @@ from typing import Callable
 APP_NAME = "KCMVP 인증서 다운로더"
 CREDIT = "made by Myungjun Kim"
 COPYRIGHT = "© 2026 Myungjun Kim · GNU AGPL v3"
-GITHUB_URL = "https://github.com/samdae5back"   # 예: "https://github.com/<아이디>" 또는 저장소 주소 — 비워 두면 링크를 표시하지 않는다
-APP_VERSION = "1.1.0"
+GITHUB_URL = "https://github.com/samdae5back/kcmvp_cert_downloader"  
+APP_VERSION = "1.1.1"
 # 창 제목·오른쪽 아래 푸터에 표시한다. exe 파일 속성(자세히 탭)의 회사·저작권은 version_info.txt.
 FROZEN = bool(getattr(sys, "frozen", False))
 APP_DIR = (Path(sys.executable) if FROZEN else Path(__file__)).resolve().parent
