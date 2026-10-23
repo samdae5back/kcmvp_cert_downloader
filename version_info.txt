@@ -20,7 +20,7 @@ VSVersionInfo(
          StringStruct('FileDescription', 'KCMVP 인증서 다운로더 (made by Myungjun Kim)'),
          StringStruct('FileVersion', '1.1.0.0'),
          StringStruct('InternalName', 'KcmvpCertDownloader'),
-         StringStruct('LegalCopyright', '© 2026 Myungjun Kim. All rights reserved.'),
+         StringStruct('LegalCopyright', '© 2026 Myungjun Kim. Licensed under the GNU AGPL v3.'),
          StringStruct('OriginalFilename', 'KcmvpCertDownloader.exe'),
          StringStruct('ProductName', 'KCMVP 인증서 다운로더'),
          StringStruct('ProductVersion', '1.1.0.0')])

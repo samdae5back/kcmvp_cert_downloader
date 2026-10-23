@@ -1,7 +1,12 @@
 #!/usr/bin/env python3
 r"""
 KCMVP 인증서 다운로더 — Windows 단독 실행용 GUI.
-made by Myungjun Kim · © 2026 Myungjun Kim. All rights reserved. · https://github.com/samdae5back
+made by Myungjun Kim · © 2026 Myungjun Kim · https://github.com/samdae5back
+
+This program is free software: you can redistribute it and/or modify it under the terms of
+the GNU Affero General Public License as published by the Free Software Foundation, either
+version 3 of the License, or (at your option) any later version. It is distributed WITHOUT
+ANY WARRANTY; see the LICENSE file (or <https://www.gnu.org/licenses/>) for details.
 
 crypto_manage 웹앱의 "인증서 받기"(CAVP) · "엔트로피 인증서 받기" 기능
 (scripts/kcmvp_sample_runner.py 의 download_row_certificate / run_entropy_cert_job 흐름)을
@@ -47,7 +52,7 @@ from typing import Callable
 
 APP_NAME = "KCMVP 인증서 다운로더"
 CREDIT = "made by Myungjun Kim"
-COPYRIGHT = "© 2026 Myungjun Kim. All rights reserved."
+COPYRIGHT = "© 2026 Myungjun Kim · GNU AGPL v3"
 GITHUB_URL = "https://github.com/samdae5back"   # 예: "https://github.com/<아이디>" 또는 저장소 주소 — 비워 두면 링크를 표시하지 않는다
 APP_VERSION = "1.1.0"
 # 창 제목·오른쪽 아래 푸터에 표시한다. exe 파일 속성(자세히 탭)의 회사·저작권은 version_info.txt.

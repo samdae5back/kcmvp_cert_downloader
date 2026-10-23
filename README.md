@@ -12,7 +12,7 @@
 - **[중단]** 을 누르면 진행 중인 건을 정리하고 남은 예약은 취소합니다
 - 비밀번호는 저장하지 않습니다 (계정 ID · 저장 폴더 · 종류만 `kcmvp_cert_downloader.json` 에 기억)
 
-제작: **Myungjun Kim** · © 2026 Myungjun Kim. All rights reserved. · GitHub: <https://github.com/samdae5back>
+제작: **Myungjun Kim** · © 2026 Myungjun Kim · GitHub: <https://github.com/samdae5back> · 라이선스: **GNU AGPL v3** (아래 참고)
 창 제목과 오른쪽 아래 푸터, exe 파일 속성(자세히 탭)에 같은 표기가 들어갑니다. 푸터의 GitHub 링크는 누르면 브라우저로 열립니다.
 
 > CAVP 인증서 이름이 웹앱(`환경_비트_아키텍처_번호.pdf`)과 다른 이유: 그 환경 정보는 웹앱의
@@ -85,3 +85,11 @@ wheel 이 없어 Windows 에서 `Failed building wheel for greenlet` 로 설치�
 CAVP 인증서(`download_row_certificate`, `run_download_job`) · 엔트로피 인증서(`run_entropy_cert_job`) 부분을
 그대로 옮긴 것입니다. KCMVP 사이트가 바뀌어 러너를 고치면 이 파일의 같은 함수도 맞춰야 합니다.
 러너와 달리 `STATE`(runner_state) · 웹서버 · 데이터 디렉터리에는 의존하지 않습니다.
+
+## 라이선스
+
+이 프로그램은 [GNU Affero General Public License v3.0](LICENSE) 으로 배포합니다.
+
+- 자유롭게 사용·복제·수정·재배포할 수 있습니다.
+- 수정해서 배포하거나 **네트워크로 서비스하는 경우에도** 같은 라이선스로 소스 코드를 공개해야 합니다.
+- 보증은 없습니다. 자세한 조건은 `LICENSE` 파일을 보세요.
