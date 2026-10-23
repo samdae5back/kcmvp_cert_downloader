@@ -1,23 +1,30 @@
 #!/usr/bin/env python3
 r"""
-KCMVP 엔트로피 인증서 다운로더 — Windows 단독 실행용 GUI.
+KCMVP 인증서 다운로더 — Windows 단독 실행용 GUI.
 made by myungjunkim · © 2026 myungjunkim. All rights reserved.
 
-crypto_manage 웹앱의 "엔트로피 인증서" 기능(scripts/kcmvp_sample_runner.py 의
-run_entropy_cert_job 흐름)을 러너·웹서버·데이터 디렉터리 없이 혼자 돌게 떼어낸 것이다.
+crypto_manage 웹앱의 "인증서 받기"(CAVP) · "엔트로피 인증서 받기" 기능
+(scripts/kcmvp_sample_runner.py 의 download_row_certificate / run_entropy_cert_job 흐름)을
+러너·웹서버·데이터 디렉터리 없이 혼자 돌게 떼어낸 것이다.
 사이트 셀렉터, 전자서명 응답 캡처(XHR 후킹), 세션 유지 규칙은 러너와 같다 —
 러너 쪽 셀렉터를 고치면 여기도 맞춰야 한다.
 
 동작
-  1. 계정·비밀번호·번호 범위를 넣고 [인증서 받기] → 크로미움(헤드리스)으로 로그인
-  2. 자가검증 목록 > Entropy 탭을 돌며 범위 안의 번호를 찾아 "세부결과 → 전자 서명"
-  3. 응답 PDF 를 <저장 폴더>\<번호>_<환경명>.pdf 로 저장 (환경명 = 목록의 OS 열)
-  4. 작업 중에 범위를 더 넣으면 예약 큐에 쌓여 지금 작업이 끝나는 대로 이어서 받는다
+  1. 계정·비밀번호, 인증서 종류(CAVP / 엔트로피), 번호 범위를 넣고 [인증서 받기]
+     → 크로미움(헤드리스)으로 로그인
+  2. CAVP:     자가검증 목록 CAVP 탭을 페이지별로 돌며 번호를 찾아 "결과 확인 → 전자서명"
+     엔트로피: Entropy 탭을 돌며 번호를 찾아 "세부결과 → 전자 서명"
+  3. 응답 PDF 저장
+       CAVP     <저장 폴더>\cavp\CAVP_<번호>.pdf
+       엔트로피 <저장 폴더>\entropy\<번호>_<환경명>.pdf   (환경명 = 목록의 OS 열)
+     (웹앱의 CAVP 인증서 이름 '환경_비트_아키텍처_번호' 는 웹앱의 운영환경 매핑에서 오는
+      정보라 단독 도구에서는 쓸 수 없다 → 번호로만 이름을 짓는다)
+  4. 작업 중에 범위를 더 넣으면(종류 무관) 예약 큐에 쌓여 지금 작업이 끝나는 대로 이어서 받는다
   5. 큐가 비면 브라우저를 닫는다. 다시 [인증서 받기]를 누르면 새로 로그인한다.
 
-비밀번호는 메모리에만 두고 어디에도 저장하지 않는다(설정 파일에는 계정 ID·저장 폴더만).
+비밀번호는 메모리에만 두고 어디에도 저장하지 않는다(설정 파일에는 계정 ID·저장 폴더·종류만).
 
-개발용 실행:   python entropy_cert_downloader.py
+개발용 실행:   python kcmvp_cert_downloader.py
 Windows 빌드:  build_windows.bat  (README.md 참고)
 """
 
@@ -37,17 +44,17 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
-APP_NAME = "KCMVP 엔트로피 인증서 다운로더"
+APP_NAME = "KCMVP 인증서 다운로더"
 CREDIT = "made by myungjunkim"
 COPYRIGHT = "© 2026 myungjunkim. All rights reserved."
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 # 창 제목·오른쪽 아래 푸터에 표시한다. exe 파일 속성(자세히 탭)의 회사·저작권은 version_info.txt.
 FROZEN = bool(getattr(sys, "frozen", False))
 APP_DIR = (Path(sys.executable) if FROZEN else Path(__file__)).resolve().parent
 LOG_DIR = APP_DIR / "logs"
 HTML_DUMP_DIR = LOG_DIR / "html"
-CONFIG_FILE = APP_DIR / "entcert_downloader.json"
-DEFAULT_SAVE_DIR = APP_DIR / "entropy_certificates"
+CONFIG_FILE = APP_DIR / "kcmvp_cert_downloader.json"
+DEFAULT_SAVE_DIR = APP_DIR / "certificates"
 
 # PyInstaller 로 묶인 exe 는 옆의 browsers\ 폴더에 든 크로미움을 쓴다(build_windows.bat 가
 # 거기에 설치한다). playwright 를 import 하기 *전에* 정해야 반영된다.
@@ -84,14 +91,20 @@ def env_int(name: str, default: int) -> int:
 BASE_URL = os.getenv("KCMVP_BASE_URL", "https://www.kcmvp.or.kr:8084/")
 LIST_URL = BASE_URL.rstrip("/") + "/self/verification/list.do"
 # 인증서는 브라우저가 PDF를 그린 뒤 이 API로 올려 서명받는다 — 응답 JSON의 result가 base64 PDF.
+# CAVP 인증서와 엔트로피 인증서가 같은 API를 쓴다.
 SIGN_API_PATH = "/self/verification/api/getElectroSign.do"
 # 사이트의 세션 유지 tick(delaySessionExpire()가 치는 것과 같은 요청). 세션은 600초.
 SESSION_RESET_PATH = "/user/api/sessionReset.do"
 SESSION_KEEPALIVE_SECONDS = env_int("KCMVP_SESSION_KEEPALIVE_SECONDS", 120)
 CERT_SIGN_TIMEOUT = env_int("KCMVP_CERT_SIGN_TIMEOUT", 20 * 60)
 CERT_DIALOG_TIMEOUT = env_int("KCMVP_CERT_DIALOG_TIMEOUT", 120)
+# CAVP 그리드(서버 페이징)를 몇 페이지까지 훑을지 — 페이지 링크가 없으면 그 전에 멈춘다.
+CHECK_PAGE_LIMIT = env_int("KCMVP_CHECK_PAGE_LIMIT", 20)
 # 한 번에 예약할 수 있는 번호 개수(오타로 1~100000 같은 범위를 넣는 걸 막는다)
 MAX_RANGE = 500
+
+KIND_LABELS = {"cavp": "CAVP 인증서", "entropy": "엔트로피 인증서"}
+KIND_SUBDIRS = {"cavp": "cavp", "entropy": "entropy"}
 
 
 @dataclass(frozen=True)
@@ -102,9 +115,16 @@ class Selectors:
     login_button: str = "#btn_login"
     self_verification_top: str = "div[name='selfVeri']"
     self_verification_left: str = "li.left-selfVerification[data-link='/self/verification/list.do']"
+
+    # CAVP 탭 — 서버 페이징 켄도 그리드. 검증 완료(06) 행에만 '결과 확인' 버튼이 있다.
     cavp_table: str = "#cavpTable"
-    # 자가검증 목록의 두 번째 탭 'Entropy' — 같은 화면에서 그리드만 바뀐다.
-    entropy_tab: str = "ul.tabMenu li.nav-item"
+    cavp_result_button: str = "button[data-func='cavpResultRegist']"
+    cavp_result_dialog: str = "#cavpResultDialog"
+    cavp_sign_button: str = "div[data-func='electSignCavp']"     # 결과 모달 푸터의 '전자서명'
+    cavp_result_close: str = "div[data-func='cancelCavpResultDiag']"
+
+    # 자가검증 목록의 두 번째 탭 'Entropy' — 같은 화면에서 그리드만 바뀐다(클라이언트 페이징).
+    tab_items: str = "ul.tabMenu li.nav-item"
     entropy_div: str = "#entropyDiv"
     entropy_table: str = "#entropyTable"
     entropy_row_button: str = "button[data-func='entropyViewFun']"   # 행의 '세부결과'
@@ -116,6 +136,9 @@ class Selectors:
 
 SELECTORS = Selectors()
 
+CAVP_GRID_XPATH = (
+    "xpath=//table[@id='cavpTable']/ancestor::div"
+    "[contains(concat(' ', normalize-space(@class), ' '), ' k-grid ')][1]")
 ENTROPY_GRID_XPATH = (
     "xpath=//table[@id='entropyTable']/ancestor::div"
     "[contains(concat(' ', normalize-space(@class), ' '), ' k-grid ')][1]")
@@ -315,8 +338,51 @@ def ensure_list_page(page: Page, ctl: Control) -> Page:
     return page
 
 
+def _click_tab(page: Page, want_cavp: bool) -> bool:
+    try:
+        tabs = page.locator(SELECTORS.tab_items)
+        for index in range(tabs.count()):
+            tab = tabs.nth(index)
+            is_cavp = (tab.inner_text() or "").strip().upper() == "CAVP"
+            if is_cavp == want_cavp:
+                tab.click()
+                return True
+    except PlaywrightError:
+        logging.exception("탭을 누르지 못했습니다")
+    return False
+
+
+def open_cavp_tab(page: Page) -> bool:
+    if is_visible(page, SELECTORS.cavp_table):
+        return True
+    if not _click_tab(page, want_cavp=True):
+        logging.warning("자가검증 목록에 CAVP 탭이 없습니다")
+        return False
+    try:
+        page.locator(SELECTORS.cavp_table).first.wait_for(state="visible", timeout=10_000)
+        return True
+    except PlaywrightError:
+        logging.exception("CAVP 탭을 열지 못했습니다")
+        return False
+
+
+def open_entropy_tab(page: Page) -> bool:
+    if is_visible(page, SELECTORS.entropy_div):
+        return True
+    if not _click_tab(page, want_cavp=False):
+        logging.warning("자가검증 목록에 Entropy 탭이 없습니다")
+        return False
+    try:
+        page.locator(SELECTORS.entropy_div).first.wait_for(state="visible", timeout=10_000)
+        page.locator(SELECTORS.entropy_table).first.wait_for(state="visible", timeout=10_000)
+        return True
+    except PlaywrightError:
+        logging.exception("Entropy 탭을 열지 못했습니다")
+        return False
+
+
 # ---------------------------------------------------------------------------
-# 세션 유지 · 전자서명 응답 캡처 (CAVP 인증서와 같은 API)
+# 세션 유지 · 전자서명 응답 캡처 (CAVP · 엔트로피 공용)
 # ---------------------------------------------------------------------------
 def keep_session_alive(page: Page) -> None:
     """PDF 렌더링 동안은 서버 요청이 0건이라 세션이 조용히 만료된다 → 주기적으로 친다.
@@ -463,7 +529,7 @@ def wait_for_signed_pdf(page: Page, number: str, ctl: Control) -> bytes:
             next_keepalive = time.monotonic() + SESSION_KEEPALIVE_SECONDS
         elapsed = int(time.monotonic() - started)
         if elapsed and elapsed % 30 == 0:
-            ctl.status(f"엔트로피 인증서 생성 중 (No.{number}) — {elapsed // 60}분 {elapsed % 60}초 경과")
+            ctl.status(f"인증서 생성 중 (No.{number}) — {elapsed // 60}분 {elapsed % 60}초 경과")
         page.wait_for_timeout(1_000)
 
     if status.get("error"):
@@ -483,35 +549,194 @@ def wait_for_signed_pdf(page: Page, number: str, ctl: Control) -> bytes:
 
 
 # ---------------------------------------------------------------------------
-# Entropy 탭 · 그리드 · 결과 모달
+# CAVP 탭 · 그리드(서버 페이징) · 결과 모달
+# ---------------------------------------------------------------------------
+# 실제 동작(러너 주석, 2026-08-07 팝업 DOM 확인):
+#   1) 검증 완료(06) 행의 '결과 확인'(data-func=cavpResultRegist) → 켄도 창 #cavpResultDialog 가
+#      열리고 시험 결과 그리드(#cavpResultTable, 수백 건)가 AJAX 로 채워진다.
+#   2) 팝업 하단 '전자서명'(data-func=electSignCavp) → 브라우저가 그리드 전체를 PDF 로 그린 뒤
+#      getElectroSign.do 로 보내 서버 전자서명을 받는다 → 응답 result(base64 PDF).
+#   3) 인증서를 하나 받고 나면 사이트가 이력을 저장하며(saveValid.do) 그리드를 다시 그린다 —
+#      그 사이 표가 비어 있어서 행 찾기는 잠깐 기다려야 한다(find_cavp_row).
+
+
+def cavp_cert_stem(number: str) -> str:
+    return f"CAVP_{safe_name(str(number))}"
+
+
+def cavp_grid_info(page: Page) -> dict:
+    grid = page.locator(CAVP_GRID_XPATH)
+    if grid.count() == 0:
+        return {"currentPage": None, "pages": []}
+    selected = grid.locator(".k-pager-numbers .k-state-selected").first
+    links = grid.locator(".k-pager-numbers a[data-page]")
+    return {
+        "currentPage": selected.inner_text().strip() if selected.count() > 0 else None,
+        "pages": [links.nth(i).get_attribute("data-page") for i in range(links.count())],
+    }
+
+
+def cavp_current_page(page: Page) -> str | None:
+    try:
+        return cavp_grid_info(page).get("currentPage")
+    except PlaywrightError:
+        return None
+
+
+def read_cavp_view_rows(page: Page) -> list[dict]:
+    """지금 보이는 CAVP 그리드 페이지의 행 — {number, resultReady, status}.
+
+    status 는 '상태' 열들(알고리즘 뒤 ~ 날짜 앞)의 글자 — 결과 확인 버튼이 없을 때 사유 표시용.
+    """
+    return page_eval_json(
+        page,
+        """() => JSON.stringify(
+               Array.from(document.querySelectorAll("#cavpTable tbody tr")).map((tr) => {
+                   const td = tr.querySelector("td[data-field='number']");
+                   const cells = Array.from(tr.querySelectorAll('td'))
+                       .map((c) => c.textContent.trim().replace(/\\s+/g, ' '));
+                   const middle = cells.length >= 4 ? cells.slice(2, -1) : cells.slice(2);
+                   return {
+                       number: td ? td.textContent.trim() : (cells[0] || ''),
+                       resultReady: !!tr.querySelector("button[data-func='cavpResultRegist']"),
+                       status: middle.filter((c) => c).join(' ').slice(0, 80),
+                   };
+               }).filter((r) => r.number))""") or []
+
+
+def first_cavp_number(page: Page) -> str | None:
+    rows = read_cavp_view_rows(page)
+    return rows[0]["number"] if rows else None
+
+
+def go_to_cavp_page(page: Page, page_number: int) -> bool:
+    """CAVP 그리드를 ``page_number`` 페이지로 옮긴다(서버 페이징 — 페이저 링크 클릭).
+
+    False 는 '그 페이지 링크가 없다'(마지막 페이지를 넘었다) 또는 전환 실패.
+    """
+    before_first = first_cavp_number(page)
+    try:
+        grid = page.locator(CAVP_GRID_XPATH)
+        if grid.count() == 0:
+            return False
+        if cavp_current_page(page) == str(page_number):
+            return True
+        link = grid.locator(f".k-pager-numbers a[data-page='{page_number}']").first
+        if link.count() == 0:
+            link = grid.locator(f"a.k-link[data-page='{page_number}']").first
+        if link.count() == 0:
+            return False
+        link.click()
+    except PlaywrightError:
+        return False
+
+    time.sleep(0.4)
+    wait_for_page_settle(page)
+    try:
+        page.locator(f"{SELECTORS.cavp_table} tbody tr").first.wait_for(
+            state="attached", timeout=10_000)
+    except PlaywrightError:
+        return False
+    deadline = time.monotonic() + 10
+    while time.monotonic() < deadline:
+        if cavp_current_page(page) == str(page_number):
+            if before_first is None or first_cavp_number(page) != before_first \
+                    or time.monotonic() > deadline - 5:
+                return True
+        time.sleep(0.5)
+    return cavp_current_page(page) == str(page_number)
+
+
+def find_cavp_row(page: Page, number: str, timeout: float = 20.0):
+    """현재 그리드 페이지에서 번호 칸이 ``number`` 인 행 — 그리드가 다시 그려지는 동안 기다린다."""
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            rows = page.locator(f"{SELECTORS.cavp_table} tbody tr")
+            for index in range(rows.count()):
+                row = rows.nth(index)
+                if row.locator("td[data-field='number']").first.inner_text().strip() == number:
+                    return row
+        except PlaywrightError:
+            pass
+        if time.monotonic() >= deadline:
+            return None
+        time.sleep(0.5)
+
+
+def close_cert_dialog(page: Page) -> None:
+    """CAVP 결과 팝업을 닫아 다음 행을 처리할 수 있게 만든다."""
+    try:  # 서명 중 덮이는 대기 레이어는 성공 경로에서만 정리된다
+        page.evaluate(
+            "() => document.querySelectorAll('.wait-layer').forEach((el) => { el.style.display = 'none'; })")
+    except PlaywrightError:
+        pass
+    for selector in (f"{SELECTORS.cavp_result_dialog} {SELECTORS.cavp_result_close}",
+                     SELECTORS.cavp_result_close, ".k-window-titlebar .k-i-close"):
+        try:
+            locator = page.locator(selector).first
+            if locator.count() > 0 and locator.is_visible():
+                locator.click(timeout=3_000)
+                page.locator(SELECTORS.cavp_result_dialog).first.wait_for(
+                    state="hidden", timeout=5_000)
+                return
+        except PlaywrightError:
+            pass
+    try:
+        page.evaluate(
+            "() => { const w = window.jQuery && jQuery('#cavpResultDialog').data('kendoWindow');"
+            " if (w) w.close(); }")
+    except PlaywrightError:
+        logging.debug("CAVP 결과 모달을 닫지 못했습니다")
+
+
+def download_cavp_certificate(page: Page, number: str, save_dir: Path, ctl: Control) -> Path | None:
+    """'결과 확인' → '전자서명' 인증서를 저장한다. 결과 확인 버튼이 없으면(검증 완료 전) None."""
+    target_row = find_cavp_row(page, number)
+    if target_row is None:
+        return None
+    button = target_row.locator(SELECTORS.cavp_result_button).first
+    if button.count() == 0:
+        return None
+
+    known_pages = set(page.context.pages)
+    button.scroll_into_view_if_needed()
+    button.click()
+    try:
+        dialog = page.locator(SELECTORS.cavp_result_dialog).first
+        dialog.wait_for(state="visible", timeout=CERT_DIALOG_TIMEOUT * 1_000)
+        sign = dialog.locator(SELECTORS.cavp_sign_button).first
+        if sign.count() == 0:
+            sign = page.locator(SELECTORS.cavp_sign_button).first
+        try:
+            sign.wait_for(state="visible", timeout=CERT_DIALOG_TIMEOUT * 1_000)
+        except PlaywrightError:
+            dump_page_html(page, number, "cavp_no_sign_button")
+            raise RuntimeError("결과 팝업에서 '전자서명' 버튼을 찾지 못했습니다")
+
+        install_sign_capture_hook(page)
+        sign.click()
+        ctl.status(f"CAVP 인증서 생성 중 (No.{number}) — 수 분 걸릴 수 있음")
+        pdf = wait_for_signed_pdf(page, number, ctl)
+
+        dest_dir = save_dir / KIND_SUBDIRS["cavp"]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / f"{cavp_cert_stem(number)}.pdf"
+        dest.write_bytes(pdf)
+        logging.info("저장: CAVP No.%s -> %s (%s bytes)", number, dest.name, len(pdf))
+        return dest
+    finally:
+        close_extra_pages(page, known_pages)
+        close_cert_dialog(page)
+
+
+# ---------------------------------------------------------------------------
+# Entropy 탭 · 그리드(클라이언트 페이징) · 결과 모달
 # ---------------------------------------------------------------------------
 def entropy_cert_stem(number: str, environment: str) -> str:
     """파일 이름(확장자 제외) — '샘플번호_환경명'. 환경명은 OS 열 그대로, 경로 금지 문자만 치환."""
     name = re.sub(r'[\\/:*?"<>|\s]+', "_", str(environment).strip()).strip("._") or "env"
     return f"{safe_name(str(number))}_{name}"
-
-
-def open_entropy_tab(page: Page) -> bool:
-    if is_visible(page, SELECTORS.entropy_div):
-        return True
-    try:
-        tabs = page.locator(SELECTORS.entropy_tab)
-        target = None
-        for index in range(tabs.count()):
-            tab = tabs.nth(index)
-            if (tab.inner_text() or "").strip().upper() != "CAVP":
-                target = tab
-                break
-        if target is None:
-            logging.warning("자가검증 목록에 Entropy 탭이 없습니다")
-            return False
-        target.click()
-        page.locator(SELECTORS.entropy_div).first.wait_for(state="visible", timeout=10_000)
-        page.locator(SELECTORS.entropy_table).first.wait_for(state="visible", timeout=10_000)
-        return True
-    except PlaywrightError:
-        logging.exception("Entropy 탭을 열지 못했습니다")
-        return False
 
 
 def entropy_grid_pages(page: Page) -> int:
@@ -691,10 +916,12 @@ def download_entropy_certificate(page: Page, row: dict, save_dir: Path, ctl: Con
         ctl.status(f"엔트로피 인증서 생성 중 (No.{number} · {environment}) — 수 분 걸릴 수 있음")
         pdf = wait_for_signed_pdf(page, number, ctl)
 
-        save_dir.mkdir(parents=True, exist_ok=True)
-        dest = save_dir / f"{entropy_cert_stem(number, environment)}.pdf"
+        dest_dir = save_dir / KIND_SUBDIRS["entropy"]
+        dest_dir.mkdir(parents=True, exist_ok=True)
+        dest = dest_dir / f"{entropy_cert_stem(number, environment)}.pdf"
         dest.write_bytes(pdf)
-        logging.info("저장: No.%s (%s) -> %s (%s bytes)", number, environment, dest.name, len(pdf))
+        logging.info("저장: 엔트로피 No.%s (%s) -> %s (%s bytes)",
+                     number, environment, dest.name, len(pdf))
         return dest
     finally:
         close_extra_pages(page, known_pages)
@@ -702,10 +929,11 @@ def download_entropy_certificate(page: Page, row: dict, save_dir: Path, ctl: Con
 
 
 # ---------------------------------------------------------------------------
-# 워커 스레드 — 브라우저 하나로 예약 큐의 범위를 차례로 처리한다
+# 워커 스레드 — 브라우저 하나로 예약 큐의 작업(종류·범위)을 차례로 처리한다
 # ---------------------------------------------------------------------------
 @dataclass
 class Job:
+    kind: str          # "cavp" | "entropy"
     start: int
     end: int
     numbers: list[str]
@@ -713,7 +941,7 @@ class Job:
     @property
     def label(self) -> str:
         span = f"No.{self.start}" if self.start == self.end else f"No.{self.start}~{self.end}"
-        return f"{span} ({len(self.numbers)}건)"
+        return f"{KIND_LABELS[self.kind]} {span} ({len(self.numbers)}건)"
 
 
 class Downloader(threading.Thread):
@@ -724,36 +952,38 @@ class Downloader(threading.Thread):
     옛 워커의 뒷정리 이벤트가 새 워커의 표시를 덮어쓰기 때문이다.
       ("log", None, text)  ("status", worker, text)  ("progress", worker, done, total)
       ("queue", worker, [labels])  ("job_start", worker, label)
-      ("result", worker, {number, environment, file|error})
+      ("result", worker, {kind, number, environment, file|error})
       ("job_done", worker, label, saved, total)  ("finished", worker, ok, message)
     """
 
     def __init__(self, ctl: Control, save_dir: Path, headless: bool, events: queue.Queue):
-        super().__init__(daemon=True, name="entcert-downloader")
+        super().__init__(daemon=True, name="kcmvp-cert-downloader")
         self.ctl = ctl
         self.save_dir = save_dir
         self.headless = headless
         self.events = events
         self._lock = threading.Lock()
         self._jobs: list[Job] = []
-        self._queued: set[str] = set()   # 아직 처리하지 않은 번호(중복 예약 방지)
-        self._accepting = True           # 큐가 비어 브라우저를 닫기 시작하면 False
+        self._queued: set[tuple[str, str]] = set()   # (종류, 번호) — 아직 처리 안 된 것(중복 예약 방지)
+        self._accepting = True                        # 큐가 비어 브라우저를 닫기 시작하면 False
         self.total = 0
         self.done = 0
         self.saved = 0
         self.failed = 0
 
     # -- GUI 쪽에서 부르는 것 --------------------------------------------------
-    def add(self, start: int, end: int) -> tuple[str, Job | None]:
+    def add(self, kind: str, start: int, end: int) -> tuple[str, Job | None]:
         """범위를 예약한다 → ("added", job) / ("duplicate", None) / ("closed", None)."""
+        if kind not in KIND_LABELS:
+            raise ValueError(kind)
         with self._lock:
             if not self._accepting:
                 return "closed", None
-            numbers = [str(n) for n in range(start, end + 1) if str(n) not in self._queued]
+            numbers = [str(n) for n in range(start, end + 1) if (kind, str(n)) not in self._queued]
             if not numbers:
                 return "duplicate", None
-            job = Job(start, end, numbers)
-            self._queued.update(numbers)
+            job = Job(kind, start, end, numbers)
+            self._queued.update((kind, n) for n in numbers)
             self._jobs.append(job)
             self.total += len(numbers)
             pending = [j.label for j in self._jobs]
@@ -779,9 +1009,9 @@ class Downloader(threading.Thread):
         self._emit("queue", pending)
         return job
 
-    def _mark_done(self, number: str, saved: bool | None) -> None:
+    def _mark_done(self, kind: str, number: str, saved: bool | None) -> None:
         with self._lock:
-            self._queued.discard(number)
+            self._queued.discard((kind, number))
             self.done += 1
             if saved is True:
                 self.saved += 1
@@ -846,13 +1076,95 @@ class Downloader(threading.Thread):
             self._emit("finished", ok, message)
 
     def _run_job(self, page: Page, job: Job) -> Page:
-        """러너의 run_entropy_cert_job 과 같은 흐름 — 그리드를 돌며 범위의 번호를 찾아 저장."""
+        self._emit("job_start", job.label)
+        logging.info("작업 시작: %s → %s", job.label, self.save_dir / KIND_SUBDIRS[job.kind])
+        page = ensure_list_page(page, self.ctl)
+        if job.kind == "cavp":
+            page, remaining, saved = self._run_cavp_job(page, job)
+        else:
+            page, remaining, saved = self._run_entropy_job(page, job)
+
+        if remaining:
+            missing = sorted(remaining, key=int)
+            for number in missing:
+                self._mark_done(job.kind, number, None)
+            if self.ctl.stopping:
+                reason = "중단 요청으로 건너뜀"
+            elif job.kind == "cavp":
+                reason = f"CAVP 목록 1~{CHECK_PAGE_LIMIT}페이지에서 찾지 못한 번호입니다 ({len(missing)}건)"
+            else:
+                reason = f"엔트로피 목록에 없는 번호입니다 ({len(missing)}건)"
+            self._emit("result", {
+                "kind": job.kind,
+                "number": ", ".join(missing[:20]) + (" 외" if len(missing) > 20 else ""),
+                "environment": "-", "error": reason,
+            })
+            if not self.ctl.stopping:
+                logging.warning("%s: 목록에 없는 번호 %s건: %s",
+                                KIND_LABELS[job.kind], len(missing), ", ".join(missing[:20]))
+
+        self._emit("job_done", job.label, saved, len(job.numbers))
+        logging.info("작업 끝: %s — %s/%s 저장", job.label, saved, len(job.numbers))
+        return page
+
+    def _record(self, job: Job, result: dict) -> None:
+        self._mark_done(job.kind, result["number"], "file" in result)
+        self._emit("result", result)
+
+    def _run_cavp_job(self, page: Page, job: Job) -> tuple[Page, set[str], int]:
+        """러너의 run_download_job(kind="cert") 과 같은 흐름 — CAVP 페이지를 차례로 훑는다."""
         remaining = set(job.numbers)
         saved = 0
-        self._emit("job_start", job.label)
-        logging.info("작업 시작: %s → %s", job.label, self.save_dir)
+        if not open_cavp_tab(page):
+            raise RuntimeError("자가검증 목록에서 CAVP 탭을 열지 못했습니다")
 
-        page = ensure_list_page(page, self.ctl)
+        for page_number in range(1, CHECK_PAGE_LIMIT + 1):
+            if not remaining or self.ctl.stopping:
+                break
+            if not go_to_cavp_page(page, page_number):
+                if page_number == 1:
+                    continue
+                break  # 페이지 링크가 없다 = 마지막 페이지를 넘었다
+            rows = {r["number"]: r for r in read_cavp_view_rows(page)}
+            for number in [n for n in rows if n in remaining]:
+                if self.ctl.stopping:
+                    break
+                remaining.discard(number)
+                self.ctl.status(f"CAVP 인증서 다운로드 중 (No.{number})")
+                result = {"kind": "cavp", "number": number, "environment": "-"}
+                try:
+                    dest = download_cavp_certificate(page, number, self.save_dir, self.ctl)
+                    if dest is None:
+                        status = rows[number].get("status") or ""
+                        result["error"] = ("'결과 확인' 버튼 없음 (CAVP 검증 완료 전)"
+                                           + (f" — 상태: {status}" if status else ""))
+                    else:
+                        result["file"] = str(dest)
+                        saved += 1
+                except Exception as exc:  # noqa: BLE001 - 한 건의 실패가 작업을 죽이면 안 된다
+                    if isinstance(exc, StopRequested):
+                        logging.info("No.%s: %s", number, exc)
+                    else:
+                        logging.exception("실패: CAVP No.%s", number)
+                    result["error"] = str(exc).splitlines()[0][:200]
+                self._record(job, result)
+
+                # 한 건 뒤에는 화면이 흔들린다(이력 저장으로 그리드 재렌더·새 탭·세션) →
+                # 목록·탭·페이지를 복구한다. 한 번 더 시도하고 안 되면 이 작업은 접는다.
+                if remaining and not self.ctl.stopping:
+                    page = ensure_list_page(page, self.ctl)
+                    if not (open_cavp_tab(page) and go_to_cavp_page(page, page_number)):
+                        logging.warning("CAVP %s 페이지로 돌아가지 못해 한 번 더 시도합니다", page_number)
+                        page = ensure_list_page(page, self.ctl)
+                        if not (open_cavp_tab(page) and go_to_cavp_page(page, page_number)):
+                            logging.warning("CAVP %s 페이지 복구 실패 — 작업을 접습니다", page_number)
+                            return page, remaining, saved
+        return page, remaining, saved
+
+    def _run_entropy_job(self, page: Page, job: Job) -> tuple[Page, set[str], int]:
+        """러너의 run_entropy_cert_job 과 같은 흐름 — 클라이언트 페이징 그리드를 돈다."""
+        remaining = set(job.numbers)
+        saved = 0
         if not open_entropy_tab(page):
             raise RuntimeError("자가검증 목록에서 Entropy 탭을 열지 못했습니다")
 
@@ -868,7 +1180,7 @@ class Downloader(threading.Thread):
                 number = row["number"]
                 remaining.discard(number)
                 self.ctl.status(f"엔트로피 인증서 다운로드 중 (No.{number} · {row['os']})")
-                result = {"number": number, "environment": row["os"]}
+                result = {"kind": "entropy", "number": number, "environment": row["os"]}
                 try:
                     dest = download_entropy_certificate(page, row, self.save_dir, self.ctl)
                     result["file"] = str(dest)
@@ -877,35 +1189,17 @@ class Downloader(threading.Thread):
                     if isinstance(exc, StopRequested):
                         logging.info("No.%s: %s", number, exc)
                     else:
-                        logging.exception("실패: No.%s", number)
+                        logging.exception("실패: 엔트로피 No.%s", number)
                     result["error"] = str(exc).splitlines()[0][:200]
-                self._mark_done(number, "file" in result)
-                self._emit("result", result)
+                self._record(job, result)
 
-                # 한 건 뒤에는 화면이 흔들린다(모달·새 탭·세션) → 목록·탭·페이지를 복구한다.
                 if remaining and not self.ctl.stopping:
                     if not is_visible(page, SELECTORS.entropy_table):
                         page = ensure_list_page(page, self.ctl)
                     if not open_entropy_tab(page) or not go_to_entropy_page(page, page_number):
                         logging.warning("엔트로피 목록 %s 페이지로 돌아가지 못했습니다", page_number)
-                        break
-
-        if remaining:
-            missing = sorted(remaining, key=int)
-            for number in missing:
-                self._mark_done(number, None)
-            self._emit("result", {
-                "number": ", ".join(missing[:20]) + (" 외" if len(missing) > 20 else ""),
-                "environment": "-",
-                "error": ("중단 요청으로 건너뜀" if self.ctl.stopping
-                          else f"엔트로피 목록에 없는 번호입니다 ({len(missing)}건)"),
-            })
-            if not self.ctl.stopping:
-                logging.warning("목록에 없는 번호 %s건: %s", len(missing), ", ".join(missing[:20]))
-
-        self._emit("job_done", job.label, saved, len(job.numbers))
-        logging.info("작업 끝: %s — %s/%s 저장", job.label, saved, len(job.numbers))
-        return page
+                        return page, remaining, saved
+        return page, remaining, saved
 
 
 # ---------------------------------------------------------------------------
@@ -934,7 +1228,7 @@ def setup_logging(events: queue.Queue) -> Path | None:
     root.addHandler(handler)
     try:
         LOG_DIR.mkdir(parents=True, exist_ok=True)
-        log_file = LOG_DIR / "entcert_downloader.log"
+        log_file = LOG_DIR / "kcmvp_cert_downloader.log"
         file_handler = logging.FileHandler(log_file, encoding="utf-8")
         file_handler.setFormatter(
             logging.Formatter("%(asctime)s %(levelname)s %(threadName)s %(message)s"))
@@ -959,12 +1253,19 @@ def save_config(data: dict) -> None:
         logging.debug("설정 파일을 쓰지 못했습니다: %s", CONFIG_FILE)
 
 
-def next_number_hint(save_dir: Path) -> int:
-    """저장 폴더의 '번호_환경명.pdf' 중 가장 큰 번호 + 1 (없으면 1) — 시작 번호 기본값."""
+def next_number_hint(save_dir: Path, kind: str) -> int:
+    """종류별 하위 폴더에 이미 있는 파일 중 가장 큰 번호 + 1 (없으면 1) — 시작 번호 기본값.
+
+    CAVP 는 'CAVP_<번호>.pdf', 엔트로피는 '<번호>_<환경명>.pdf'.
+    """
     numbers = []
     try:
-        for path in save_dir.glob("*.pdf"):
-            head = path.stem.partition("_")[0]
+        for path in (save_dir / KIND_SUBDIRS[kind]).glob("*.pdf"):
+            stem = path.stem
+            if kind == "cavp":
+                head = stem[len("CAVP_"):] if stem.startswith("CAVP_") else ""
+            else:
+                head = stem.partition("_")[0]
             if head.isdigit():
                 numbers.append(int(head))
     except OSError:
@@ -994,7 +1295,7 @@ class App:
     def __init__(self) -> None:
         self.root = tk.Tk()
         self.root.title(f"{APP_NAME} v{APP_VERSION} — {CREDIT}")
-        self.root.minsize(760, 620)
+        self.root.minsize(800, 640)
         self.events: queue.Queue = queue.Queue()
         self.worker: Downloader | None = None
         self.running = False
@@ -1004,17 +1305,19 @@ class App:
         self.user_var = tk.StringVar(value=self.config.get("user_id", ""))
         self.password_var = tk.StringVar()
         self.save_dir_var = tk.StringVar(value=self.config.get("save_dir") or str(DEFAULT_SAVE_DIR))
-        hint = next_number_hint(Path(self.save_dir_var.get()))
-        self.start_var = tk.StringVar(value=str(hint))
-        self.end_var = tk.StringVar(value=str(hint))
+        kind = self.config.get("kind")
+        self.kind_var = tk.StringVar(value=kind if kind in KIND_LABELS else "cavp")
+        self.start_var = tk.StringVar()
+        self.end_var = tk.StringVar()
         self.show_browser_var = tk.BooleanVar(value=bool(self.config.get("show_browser", False)))
         self.status_var = tk.StringVar(value="대기 중")
         self.progress_var = tk.StringVar(value="")
         self.queue_var = tk.StringVar(value="예약 없음")
 
         self._build()
+        self._refresh_hint()
         log_file = setup_logging(self.events)
-        logging.info("%s 시작 (로그: %s)", APP_NAME, log_file or "파일 없음")
+        logging.info("%s v%s 시작 (로그: %s)", APP_NAME, APP_VERSION, log_file or "파일 없음")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
         self.root.after(self.POLL_MS, self._poll)
 
@@ -1036,25 +1339,35 @@ class App:
         self.password_entry = ttk.Entry(form, textvariable=self.password_var, show="*")
         self.password_entry.grid(row=0, column=3, sticky="ew", **pad)
 
-        ttk.Label(form, text="시작 번호").grid(row=1, column=0, sticky="w", **pad)
-        self.start_entry = ttk.Entry(form, textvariable=self.start_var, width=12)
-        self.start_entry.grid(row=1, column=1, sticky="w", **pad)
-        ttk.Label(form, text="끝 번호").grid(row=1, column=2, sticky="w", **pad)
-        self.end_entry = ttk.Entry(form, textvariable=self.end_var, width=12)
-        self.end_entry.grid(row=1, column=3, sticky="w", **pad)
+        ttk.Label(form, text="인증서 종류").grid(row=1, column=0, sticky="w", **pad)
+        kinds = ttk.Frame(form)
+        kinds.grid(row=1, column=1, columnspan=3, sticky="w", **pad)
+        self.kind_radios = []
+        for value, label in KIND_LABELS.items():
+            radio = ttk.Radiobutton(kinds, text=label, value=value, variable=self.kind_var,
+                                    command=self._refresh_hint)
+            radio.pack(side="left", padx=(0, 14))
+            self.kind_radios.append(radio)
 
-        ttk.Label(form, text="저장 폴더").grid(row=2, column=0, sticky="w", **pad)
+        ttk.Label(form, text="시작 번호").grid(row=2, column=0, sticky="w", **pad)
+        self.start_entry = ttk.Entry(form, textvariable=self.start_var, width=12)
+        self.start_entry.grid(row=2, column=1, sticky="w", **pad)
+        ttk.Label(form, text="끝 번호").grid(row=2, column=2, sticky="w", **pad)
+        self.end_entry = ttk.Entry(form, textvariable=self.end_var, width=12)
+        self.end_entry.grid(row=2, column=3, sticky="w", **pad)
+
+        ttk.Label(form, text="저장 폴더").grid(row=3, column=0, sticky="w", **pad)
         self.save_dir_entry = ttk.Entry(form, textvariable=self.save_dir_var)
-        self.save_dir_entry.grid(row=2, column=1, columnspan=3, sticky="ew", **pad)
+        self.save_dir_entry.grid(row=3, column=1, columnspan=3, sticky="ew", **pad)
         folder_buttons = ttk.Frame(form)
-        folder_buttons.grid(row=2, column=4, sticky="w")
+        folder_buttons.grid(row=3, column=4, sticky="w")
         self.browse_button = ttk.Button(folder_buttons, text="찾아보기", command=self.on_browse)
         self.browse_button.pack(side="left", padx=(0, 4))
         ttk.Button(folder_buttons, text="폴더 열기",
                    command=lambda: open_folder(Path(self.save_dir_var.get()))).pack(side="left")
 
         actions = ttk.Frame(form)
-        actions.grid(row=3, column=0, columnspan=5, sticky="ew", **pad)
+        actions.grid(row=4, column=0, columnspan=5, sticky="ew", **pad)
         self.start_button = ttk.Button(actions, text="인증서 받기", command=self.on_start)
         self.start_button.pack(side="left")
         self.stop_button = ttk.Button(actions, text="중단", command=self.on_stop, state="disabled")
@@ -1064,9 +1377,10 @@ class App:
         self.show_browser_check.pack(side="left", padx=(16, 0))
         ttk.Label(actions, textvariable=self.queue_var).pack(side="right")
 
-        ttk.Label(outer, text=(f"한 번에 최대 {MAX_RANGE}개 번호까지. 작업 중에 범위를 더 넣으면 "
+        ttk.Label(outer, text=(f"CAVP 는 cavp\\CAVP_번호.pdf, 엔트로피는 entropy\\번호_환경명.pdf 로 저장합니다. "
+                               f"한 번에 최대 {MAX_RANGE}개 번호까지. 작업 중에 범위를 더 넣으면(종류 무관) "
                                "예약되어 끝나는 대로 이어서 받습니다. 같은 번호의 파일은 덮어씁니다."),
-                  foreground="#555").pack(anchor="w", pady=(4, 0))
+                  foreground="#555", wraplength=760, justify="left").pack(anchor="w", pady=(4, 0))
 
         status = ttk.Frame(outer, padding=(0, 8, 0, 0))
         status.pack(fill="x")
@@ -1079,14 +1393,16 @@ class App:
 
         results = ttk.LabelFrame(outer, text="결과", padding=6)
         results.pack(fill="both", expand=True, pady=(8, 0))
-        columns = ("number", "environment", "outcome")
+        columns = ("kind", "number", "environment", "outcome")
         self.tree = ttk.Treeview(results, columns=columns, show="headings", height=9)
+        self.tree.heading("kind", text="종류")
         self.tree.heading("number", text="번호")
         self.tree.heading("environment", text="환경명")
         self.tree.heading("outcome", text="결과")
+        self.tree.column("kind", width=90, anchor="w", stretch=False)
         self.tree.column("number", width=110, anchor="w", stretch=False)
-        self.tree.column("environment", width=220, anchor="w", stretch=False)
-        self.tree.column("outcome", width=380, anchor="w")
+        self.tree.column("environment", width=200, anchor="w", stretch=False)
+        self.tree.column("outcome", width=360, anchor="w")
         self.tree.tag_configure("ok", foreground="#1a7f37")
         self.tree.tag_configure("err", foreground="#b42318")
         tree_scroll = ttk.Scrollbar(results, orient="vertical", command=self.tree.yview)
@@ -1113,6 +1429,13 @@ class App:
         self.root.bind("<Return>", lambda _e: self.on_start())
 
     # -- 입력 ------------------------------------------------------------------------
+    def _refresh_hint(self) -> None:
+        """종류·저장 폴더가 바뀌면 시작·끝 번호를 '마지막으로 받은 번호 + 1' 로 맞춘다."""
+        hint = next_number_hint(Path(self.save_dir_var.get() or str(DEFAULT_SAVE_DIR)),
+                                self.kind_var.get())
+        self.start_var.set(str(hint))
+        self.end_var.set(str(hint))
+
     def _read_range(self) -> tuple[int, int] | None:
         start_raw, end_raw = self.start_var.get().strip(), self.end_var.get().strip()
         if not start_raw.isdigit() or not end_raw.isdigit():
@@ -1134,9 +1457,7 @@ class App:
                                          title="인증서 저장 폴더")
         if chosen:
             self.save_dir_var.set(chosen)
-            hint = next_number_hint(Path(chosen))
-            self.start_var.set(str(hint))
-            self.end_var.set(str(hint))
+            self._refresh_hint()
 
     def on_start(self) -> None:
         if self.closing:
@@ -1145,9 +1466,10 @@ class App:
         if rng is None:
             return
         start, end = rng
+        kind = self.kind_var.get()
 
         if self.running and self.worker is not None:
-            outcome, job = self.worker.add(start, end)
+            outcome, job = self.worker.add(kind, start, end)
             if outcome == "added" and job is not None:
                 logging.info("예약 추가: %s", job.label)
                 self._advance_range(end)
@@ -1168,7 +1490,7 @@ class App:
             messagebox.showerror(APP_NAME, f"저장 폴더를 만들 수 없습니다:\n{save_dir}\n{exc}")
             return
 
-        self.config.update({"user_id": user_id, "save_dir": str(save_dir),
+        self.config.update({"user_id": user_id, "save_dir": str(save_dir), "kind": kind,
                             "show_browser": bool(self.show_browser_var.get())})
         save_config(self.config)
 
@@ -1178,7 +1500,7 @@ class App:
                             events=self.events)
         ctl.status = lambda text, w=worker: self.events.put(("status", w, text))
         self.worker = worker
-        _outcome, job = self.worker.add(start, end)
+        _outcome, job = self.worker.add(kind, start, end)
         self._clear_results()
         self._set_running(True)
         logging.info("시작: %s → %s", job.label if job else f"No.{start}~{end}", save_dir)
@@ -1217,6 +1539,7 @@ class App:
         self._shut = True
         self.config.update({"user_id": self.user_var.get().strip(),
                             "save_dir": self.save_dir_var.get().strip(),
+                            "kind": self.kind_var.get(),
                             "show_browser": bool(self.show_browser_var.get())})
         save_config(self.config)
         self.root.destroy()
@@ -1281,13 +1604,14 @@ class App:
             self.status_var.set(f"{payload[0]} 처리 시작")
         elif kind == "result":
             result = payload[0]
+            label = KIND_LABELS.get(result.get("kind", ""), result.get("kind", ""))
             if "file" in result:
                 self.tree.insert("", "end", tags=("ok",), values=(
-                    result["number"], result.get("environment", ""),
+                    label, result["number"], result.get("environment", ""),
                     f"저장: {Path(result['file']).name}"))
             else:
                 self.tree.insert("", "end", tags=("err",), values=(
-                    result["number"], result.get("environment", ""),
+                    label, result["number"], result.get("environment", ""),
                     f"실패: {result.get('error', '')}"))
             children = self.tree.get_children()
             if children:
@@ -1300,6 +1624,7 @@ class App:
             self.status_var.set(message)
             self._set_running(False)
             self.worker = None   # 종료 중이면 _close_when_done 이 이걸 보고 창을 닫는다
+            self._refresh_hint()
             logging.info(message)
             if not ok and not self.closing:
                 messagebox.showerror(APP_NAME, message)

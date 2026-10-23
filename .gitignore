@@ -5,5 +5,5 @@ __pycache__/
 build/
 dist/
 logs/
-entropy_certificates/
-entcert_downloader.json
+certificates/
+kcmvp_cert_downloader.json

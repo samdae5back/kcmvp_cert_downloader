@@ -1,9 +1,9 @@
 # UTF-8
-# PyInstaller 버전 리소스 — EntropyCertDownloader.exe 의 파일 속성(자세히 탭)에 들어간다.
+# PyInstaller 버전 리소스 — KcmvpCertDownloader.exe 의 파일 속성(자세히 탭)에 들어간다.
 VSVersionInfo(
   ffi=FixedFileInfo(
-    filevers=(1, 0, 0, 0),
-    prodvers=(1, 0, 0, 0),
+    filevers=(1, 1, 0, 0),
+    prodvers=(1, 1, 0, 0),
     mask=0x3f,
     flags=0x0,
     OS=0x40004,
@@ -16,13 +16,13 @@ VSVersionInfo(
       StringTable(
         '041204B0',
         [StringStruct('CompanyName', 'myungjunkim'),
-         StringStruct('FileDescription', 'KCMVP 엔트로피 인증서 다운로더 (made by myungjunkim)'),
-         StringStruct('FileVersion', '1.0.0.0'),
-         StringStruct('InternalName', 'EntropyCertDownloader'),
+         StringStruct('FileDescription', 'KCMVP 인증서 다운로더 (made by myungjunkim)'),
+         StringStruct('FileVersion', '1.1.0.0'),
+         StringStruct('InternalName', 'KcmvpCertDownloader'),
          StringStruct('LegalCopyright', '© 2026 myungjunkim. All rights reserved.'),
-         StringStruct('OriginalFilename', 'EntropyCertDownloader.exe'),
-         StringStruct('ProductName', 'KCMVP 엔트로피 인증서 다운로더'),
-         StringStruct('ProductVersion', '1.0.0.0')])
+         StringStruct('OriginalFilename', 'KcmvpCertDownloader.exe'),
+         StringStruct('ProductName', 'KCMVP 인증서 다운로더'),
+         StringStruct('ProductVersion', '1.1.0.0')])
     ]),
     VarFileInfo([VarStruct('Translation', [1042, 1200])])
   ]

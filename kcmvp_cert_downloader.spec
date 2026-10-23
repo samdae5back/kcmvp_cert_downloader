@@ -1,6 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 # PyInstaller 스펙 — build_windows.bat 가 쓴다.
-#   dist\EntropyCertDownloader\EntropyCertDownloader.exe  (onedir: 실행이 빠르고 디버그가 쉽다)
+#   dist\KcmvpCertDownloader\KcmvpCertDownloader.exe  (onedir: 실행이 빠르고 디버그가 쉽다)
 # 크로미움은 번들에 넣지 않고 exe 옆 browsers\ 폴더에 따로 설치한다(배치 파일 참고).
 # Playwright 드라이버(node.exe + package)는 playwright 가 제공하는 PyInstaller 훅이 모으지만,
 # 훅 등록이 빠지는 환경을 대비해 여기서도 명시한다.
@@ -8,7 +8,7 @@
 from PyInstaller.utils.hooks import collect_data_files, collect_submodules
 
 a = Analysis(
-    ["entropy_cert_downloader.py"],
+    ["kcmvp_cert_downloader.py"],
     pathex=[],
     binaries=[],
     datas=collect_data_files("playwright"),
@@ -26,7 +26,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="EntropyCertDownloader",
+    name="KcmvpCertDownloader",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -41,5 +41,5 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="EntropyCertDownloader",
+    name="KcmvpCertDownloader",
 )
