@@ -32,6 +32,7 @@ exe = EXE(
     strip=False,
     upx=False,
     console=False,          # GUI 앱 — 콘솔 창 없음 (로그는 logs\entcert_downloader.log)
+    version="version_info.txt",   # 파일 속성(자세히 탭): 제작자·저작권·버전 (Windows 에서만 적용)
     disable_windowed_traceback=False,
 )
 coll = COLLECT(

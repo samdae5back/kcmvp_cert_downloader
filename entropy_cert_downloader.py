@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 r"""
 KCMVP 엔트로피 인증서 다운로더 — Windows 단독 실행용 GUI.
+made by myungjunkim · © 2026 myungjunkim. All rights reserved.
 
 crypto_manage 웹앱의 "엔트로피 인증서" 기능(scripts/kcmvp_sample_runner.py 의
 run_entropy_cert_job 흐름)을 러너·웹서버·데이터 디렉터리 없이 혼자 돌게 떼어낸 것이다.
@@ -37,6 +38,10 @@ from pathlib import Path
 from typing import Callable
 
 APP_NAME = "KCMVP 엔트로피 인증서 다운로더"
+CREDIT = "made by myungjunkim"
+COPYRIGHT = "© 2026 myungjunkim. All rights reserved."
+APP_VERSION = "1.0.0"
+# 창 제목·오른쪽 아래 푸터에 표시한다. exe 파일 속성(자세히 탭)의 회사·저작권은 version_info.txt.
 FROZEN = bool(getattr(sys, "frozen", False))
 APP_DIR = (Path(sys.executable) if FROZEN else Path(__file__)).resolve().parent
 LOG_DIR = APP_DIR / "logs"
@@ -988,7 +993,7 @@ class App:
 
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title(APP_NAME)
+        self.root.title(f"{APP_NAME} v{APP_VERSION} — {CREDIT}")
         self.root.minsize(760, 620)
         self.events: queue.Queue = queue.Queue()
         self.worker: Downloader | None = None
@@ -1096,6 +1101,10 @@ class App:
         self.log_text.configure(yscrollcommand=log_scroll.set)
         self.log_text.pack(side="left", fill="both", expand=True)
         log_scroll.pack(side="left", fill="y")
+
+        footer = ttk.Frame(outer)
+        footer.pack(fill="x", pady=(4, 0))
+        ttk.Label(footer, text=f"{CREDIT} · {COPYRIGHT}", foreground="#888").pack(side="right")
 
         if self.user_var.get():
             self.password_entry.focus_set()

@@ -10,6 +10,9 @@ Windows PC 에서 exe 하나로 돕니다.
 - **[중단]** 을 누르면 진행 중인 건을 정리하고 남은 예약은 취소합니다
 - 비밀번호는 저장하지 않습니다 (계정 ID 와 저장 폴더만 `entcert_downloader.json` 에 기억)
 
+제작: **myungjunkim** · © 2026 myungjunkim. All rights reserved.
+창 제목과 오른쪽 아래 푸터, exe 파일 속성(자세히 탭)에 같은 표기가 들어갑니다.
+
 ## 빌드 (Windows 에서)
 
 1. [python.org](https://www.python.org/downloads/windows/) 에서 Python 3.10 ~ 3.14 설치
