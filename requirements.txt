@@ -1,3 +1,5 @@
-# 서버(crypto_manage/requirements.txt)와 같은 Playwright 버전을 쓴다 — 사이트 셀렉터·동작을 러너와 맞추기 위해.
-playwright==1.45.0
-pyinstaller>=6.6
+# Playwright 는 최신 안정판을 고정한다. 서버(crypto_manage/requirements.txt)의 1.45.0 은 greenlet 3.0.3 을
+# 고정하는데 Python 3.13/3.14 용 wheel 이 없어 Windows 에서 소스 빌드(MSVC 필요)를 시도하다 실패한다.
+# 1.58 이상은 greenlet>=3.1.1 을 써서 Python 3.10~3.14 모두 미리 빌드된 wheel 로 설치된다.
+playwright==1.64.1
+pyinstaller>=6.16

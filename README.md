@@ -12,7 +12,7 @@ Windows PC 에서 exe 하나로 돕니다.
 
 ## 빌드 (Windows 에서)
 
-1. [python.org](https://www.python.org/downloads/windows/) 에서 Python 3.10 이상 설치
+1. [python.org](https://www.python.org/downloads/windows/) 에서 Python 3.10 ~ 3.14 설치
    (기본 옵션 그대로 — tcl/tk 포함, "Add python.exe to PATH" 체크 권장)
 2. 이 폴더(`tools/entcert_downloader`)를 Windows PC 로 복사
 3. `build_windows.bat` 더블클릭 (또는 명령 프롬프트에서 실행)
@@ -22,7 +22,7 @@ Windows PC 에서 exe 하나로 돕니다.
 | 단계 | 내용 |
 |---|---|
 | 가상환경 | `.venv` 생성 |
-| 의존성 | `playwright==1.45.0`(서버와 같은 버전), `pyinstaller` 설치 |
+| 의존성 | `playwright==1.64.1`, `pyinstaller` 설치 (Python 3.10~3.14 모두 미리 빌드된 wheel 로 설치됨) |
 | 빌드 | `entropy_cert_downloader.spec` 으로 `dist\EntropyCertDownloader\` 생성 (onedir) |
 | 브라우저 | 크로미움을 `dist\EntropyCertDownloader\browsers\` 에 설치 |
 
@@ -65,6 +65,10 @@ py -3 -m venv .venv
 `KCMVP_CERT_DIALOG_TIMEOUT`(초, 기본 120), `KCMVP_SESSION_KEEPALIVE_SECONDS`(기본 120).
 
 ## 유지보수 메모
+
+Playwright 버전은 서버(1.45.0)와 다르게 최신판을 씁니다. 1.45.0 이 고정하는 greenlet 3.0.3 은 Python 3.13/3.14 용
+wheel 이 없어 Windows 에서 `Failed building wheel for greenlet` 로 설치가 실패하기 때문입니다. 두 쪽은 코드를 공유하지
+않으므로 버전이 달라도 됩니다.
 
 사이트 셀렉터와 전자서명 응답 캡처(XHR 후킹) · 세션 유지 규칙은
 `scripts/kcmvp_sample_runner.py` 의 엔트로피 인증서 부분(`run_entropy_cert_job` 등)을 그대로

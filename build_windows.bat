@@ -19,6 +19,7 @@ where py >nul 2>nul && set PY=py -3
 if "%PY%"=="" ( where python >nul 2>nul && set PY=python )
 if "%PY%"=="" (
     echo [오류] Python 을 찾을 수 없습니다. https://www.python.org/downloads/ 에서 설치하세요.
+    pause
     exit /b 1
 )
 
@@ -46,9 +47,11 @@ python -m playwright install chromium || goto :fail
 echo.
 echo 빌드 완료: dist\%APP%\%APP%.exe
 echo dist\%APP% 폴더 전체를 압축해 배포하세요 (browsers 폴더가 빠지면 실행되지 않습니다).
+pause
 exit /b 0
 
 :fail
 echo.
 echo [오류] 빌드에 실패했습니다. 위 메시지를 확인하세요.
+pause
 exit /b 1
