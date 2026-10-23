@@ -12,8 +12,8 @@
 - **[중단]** 을 누르면 진행 중인 건을 정리하고 남은 예약은 취소합니다
 - 비밀번호는 저장하지 않습니다 (계정 ID · 저장 폴더 · 종류만 `kcmvp_cert_downloader.json` 에 기억)
 
-제작: **Myungjun Kim** · © 2026 Myungjun Kim · GitHub: <https://github.com/samdae5back> · 라이선스: **GNU AGPL v3** (아래 참고)
-창 제목과 오른쪽 아래 푸터, exe 파일 속성(자세히 탭)에 같은 표기가 들어갑니다. 푸터의 GitHub 링크는 누르면 브라우저로 열립니다.
+제작: **Myungjun Kim** · © 2026 Myungjun Kim · GitHub: <https://github.com/samdae5back.kcmvp_cert_downloader> · 라이선스: **GNU AGPL v3** (아래 참고)
+창 제목과 오른쪽 아래 푸터, exe 파일 속성(자세히 탭)에 같은 표기가 들어갑니다. 푸터의 GitHub 링크는 누르면 브라우저에서 열립니다.
 
 > CAVP 인증서 이름이 웹앱(`환경_비트_아키텍처_번호.pdf`)과 다른 이유: 그 환경 정보는 웹앱의
 > 운영환경 매핑에서 오는 것이라 사이트 목록에는 없습니다. 단독 도구는 번호로만 이름을 짓습니다.
